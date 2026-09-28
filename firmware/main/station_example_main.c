@@ -69,6 +69,7 @@ static EventGroupHandle_t s_wifi_event_group;
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include "../../common/protocol.h"
 #define UDP_PORT 50000
 
 static const char *TAG = "wifi station";
@@ -151,6 +152,9 @@ void wifi_init_sta(void)
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
     ESP_ERROR_CHECK(esp_wifi_start());
 
+    // Disable power save mode to avoid packet loss
+    ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_NONE));
+
     ESP_LOGI(TAG, "wifi_init_sta finished.");
 
     /* Waiting until either the connection is established (WIFI_CONNECTED_BIT) or connection failed for the maximum
@@ -181,7 +185,8 @@ void wifi_init_sta(void)
 
 void udp_receiver_task(void *pvParameters)
 {
-    char rx_buffer[128];
+    PhysicsData data;
+    QueueHandle_t queue = (QueueHandle_t)pvParameters;
 
     // create socket
     int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
@@ -215,23 +220,39 @@ void udp_receiver_task(void *pvParameters)
     while (1)
     {
         ESP_LOGI(TAG, "Waiting for UDP packet...");
-        int len = recvfrom(sock, rx_buffer, sizeof(rx_buffer) - 1, 0, (struct sockaddr *)&source_addr, &socklen);
+        int len = recvfrom(sock, &data, sizeof(data), 0, (struct sockaddr *)&source_addr, &socklen);
         if (len < 0)
         {
             ESP_LOGE(TAG, "recvfrom failed");
             break;
         }
-        rx_buffer[len] = '\0';
+        if (len > 0)
+        {
+            xQueueSend(queue, &data, portMAX_DELAY);
+        }
+
         ESP_LOGI(
             TAG,
             "Received %d bytes from %s",
             len,
             inet_ntoa(source_addr.sin_addr));
 
-        ESP_LOGI(TAG, "Data: %s", rx_buffer);
+        ESP_LOGI(TAG, "Data: %s", data);
     }
     close(sock);
     vTaskDelete(NULL);
+}
+void displayTask(void *pvParameters)
+{
+    PhysicsData data;
+    QueueHandle_t queue = (QueueHandle_t)pvParameters;
+    while (1)
+    {
+        if (xQueueReceive(queue, &data, portMAX_DELAY))
+        {
+            updateDisplay(data);
+        }
+    }
 }
 void app_main(void)
 {
@@ -253,5 +274,8 @@ void app_main(void)
 
     ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
     wifi_init_sta();
-    xTaskCreate(udp_receiver_task, "udp receiver", 4096, NULL, 5, NULL);
+
+    QueueHandle_t queue = xQueueCreate(5, sizeof(PhysicsData));
+    xTaskCreate(udp_receiver_task, "udp receiver", 4096, queue, 5, NULL);
+    xTaskCreate(displayTask, "display", 4096, queue, 5, NULL);
 }

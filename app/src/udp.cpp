@@ -5,7 +5,7 @@
 #include <ws2tcpip.h>
 
 #define PORT 50000
-#define RECEIVER_IP
+#define RECEIVER_IP "127.0.0.1"
 #include <tchar.h>
 #include "../common/protocol.h"
 #include "udp.h"
