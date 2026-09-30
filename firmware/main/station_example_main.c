@@ -70,6 +70,9 @@ static EventGroupHandle_t s_wifi_event_group;
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include "../../common/protocol.h"
+#include "display.h"
+#include "graphics.h"
+
 #define UDP_PORT 50000
 
 static const char *TAG = "wifi station";
@@ -236,24 +239,26 @@ void udp_receiver_task(void *pvParameters)
             "Received %d bytes from %s",
             len,
             inet_ntoa(source_addr.sin_addr));
-
-        ESP_LOGI(TAG, "Data: %s", data);
     }
     close(sock);
     vTaskDelete(NULL);
 }
 void displayTask(void *pvParameters)
 {
+    static uint16_t framebuffer[SCREEN_WIDTH * SCREEN_HEIGHT];
     PhysicsData data;
     QueueHandle_t queue = (QueueHandle_t)pvParameters;
     while (1)
     {
         if (xQueueReceive(queue, &data, portMAX_DELAY))
         {
-            updateDisplay(data);
+            drawGraph(framebuffer, data.gas, data.brake);
+            display_draw_buffer(framebuffer);
+            ESP_LOGI(TAG, "Updated display with gas: %.2f, brake: %.2f", data.gas, data.brake);
         }
     }
 }
+
 void app_main(void)
 {
     // Initialize NVS
@@ -273,7 +278,9 @@ void app_main(void)
     }
 
     ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
+
     wifi_init_sta();
+    display_init();
 
     QueueHandle_t queue = xQueueCreate(5, sizeof(PhysicsData));
     xTaskCreate(udp_receiver_task, "udp receiver", 4096, queue, 5, NULL);
