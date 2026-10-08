@@ -7,7 +7,7 @@ idf_component_register(
         "display.c"
         "components/graphics/graphics.cpp"
         "components/graph/graph_buffer.cpp"
-    PRIV_REQUIRES esp_wifi nvs_flash esp_driver_spi esp_driver_gpio
+    PRIV_REQUIRES esp_wifi nvs_flash esp_driver_spi esp_driver_gpio esp_timer
     INCLUDE_DIRS
         "."
         "components/graphics"

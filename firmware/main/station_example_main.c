@@ -72,15 +72,14 @@ static EventGroupHandle_t s_wifi_event_group;
 #include "../../common/protocol.h"
 #include "display.h"
 #include "graphics.h"
-
+#include "esp_timer.h"
 #define UDP_PORT 50000
 
 static const char *TAG = "wifi station";
 
 static int s_retry_num = 0;
 
-static void event_handler(void *arg, esp_event_base_t event_base,
-                          int32_t event_id, void *event_data)
+static void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
 {
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START)
     {
@@ -222,7 +221,7 @@ void udp_receiver_task(void *pvParameters)
     socklen_t socklen = sizeof(source_addr);
     while (1)
     {
-        ESP_LOGI(TAG, "Waiting for UDP packet...");
+        // ESP_LOGI(TAG, "Waiting for UDP packet...");
         int len = recvfrom(sock, &data, sizeof(data), 0, (struct sockaddr *)&source_addr, &socklen);
         if (len < 0)
         {
@@ -234,17 +233,17 @@ void udp_receiver_task(void *pvParameters)
             xQueueSend(queue, &data, portMAX_DELAY);
         }
 
-        ESP_LOGI(
-            TAG,
-            "Received %d bytes from %s",
-            len,
-            inet_ntoa(source_addr.sin_addr));
+        // ESP_LOGI(TAG, "Received %d bytes from %s",len, inet_ntoa(source_addr.sin_addr));
     }
     close(sock);
     vTaskDelete(NULL);
 }
 void displayTask(void *pvParameters)
 {
+    int64_t last_update_time = esp_timer_get_time();
+    int64_t draw_sum = 0, push_sum = 0;
+    int frames = 0;
+
     static uint16_t framebuffer[SCREEN_WIDTH * SCREEN_HEIGHT];
     PhysicsData data;
     QueueHandle_t queue = (QueueHandle_t)pvParameters;
@@ -252,9 +251,24 @@ void displayTask(void *pvParameters)
     {
         if (xQueueReceive(queue, &data, portMAX_DELAY))
         {
+            int64_t t0 = esp_timer_get_time();
             drawGraph(framebuffer, data.gas, data.brake);
+            int64_t t1 = esp_timer_get_time();
             display_draw_buffer(framebuffer);
-            ESP_LOGI(TAG, "Updated display with gas: %.2f, brake: %.2f", data.gas, data.brake);
+            int64_t t2 = esp_timer_get_time();
+
+            draw_sum += t1 - t0;
+            push_sum += t2 - t1;
+            frames++;
+            if (t2 - last_update_time > 1000000)
+            {
+                ESP_LOGI(TAG, "Draw time: %.5f us, Push time: %.5f us", (double)(draw_sum / frames), (double)(push_sum / frames));
+                frames = 0;
+                draw_sum = 0;
+                push_sum = 0;
+                last_update_time = t2;
+            }
+            // ESP_LOGI(TAG, "Updated display with gas: %.2f, brake: %.2f", data.gas, data.brake);
         }
     }
 }

@@ -5,7 +5,7 @@
 #include <ws2tcpip.h>
 
 #define PORT 50000
-#define RECEIVER_IP "127.0.0.1"
+#define RECEIVER_IP ""
 #include <tchar.h>
 #include "../common/protocol.h"
 #include "udp.h"
@@ -76,7 +76,7 @@ bool Udpclient::send(const PhysicsData &data, int size)
         return false;
     }
 
-    cout << "Packet sent, Size:" << bytesSent << endl;
+    // cout << "Packet sent, Size:" << bytesSent << endl;
 
     return true;
 }

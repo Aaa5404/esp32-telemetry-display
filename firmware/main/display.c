@@ -250,7 +250,7 @@ void display_set_window(uint8_t x0, uint8_t y0,
 
 void display_fill_screen(uint16_t color)
 {
-    display_set_window(0, 0, 127, 159);
+    display_set_window(0, 0, SCREEN_WIDTH - 1, SCREEN_HEIGHT - 1);
 
     // 128 * 160 pixels
     // 2 bytes per pixel (RGB565)
@@ -269,12 +269,13 @@ void display_fill_screen(uint16_t color)
 }
 void display_draw_buffer(const uint16_t *buffer)
 {
-    display_set_window(0, 0, 127, 159);
+    display_set_window(0, 0, SCREEN_WIDTH - 1, SCREEN_HEIGHT - 1);
 
-    for (int y = 0; y < SCREEN_HEIGHT; y++)
-    {
-        display_write_data((const uint8_t *)&buffer[y * 128], 128 * 2); // Write data accepts 1 byte
-    }
+    const size_t total_bytes = SCREEN_WIDTH * SCREEN_HEIGHT * 2;
+    const size_t chunk_bytes = total_bytes / 2; // 20,480 bytes, under the 32 KB limit
+
+    display_write_data((const uint8_t *)buffer, chunk_bytes);
+    display_write_data((const uint8_t *)buffer + chunk_bytes, total_bytes - chunk_bytes);
 }
 
 void display_init(void)
