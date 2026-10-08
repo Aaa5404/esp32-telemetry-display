@@ -271,11 +271,10 @@ void display_draw_buffer(const uint16_t *buffer)
 {
     display_set_window(0, 0, SCREEN_WIDTH - 1, SCREEN_HEIGHT - 1);
 
-    const size_t total_bytes = SCREEN_WIDTH * SCREEN_HEIGHT * 2;
-    const size_t chunk_bytes = total_bytes / 2; // 20,480 bytes, under the 32 KB limit
-
-    display_write_data((const uint8_t *)buffer, chunk_bytes);
-    display_write_data((const uint8_t *)buffer + chunk_bytes, total_bytes - chunk_bytes);
+    for (int y = 0; y < SCREEN_HEIGHT; y++)
+    {
+        display_write_data((const uint8_t *)&buffer[y * SCREEN_WIDTH], SCREEN_WIDTH * 2);
+    }
 }
 
 void display_init(void)
