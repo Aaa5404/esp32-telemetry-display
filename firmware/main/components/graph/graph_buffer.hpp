@@ -13,5 +13,6 @@ private:
 public:
     void enqueue(float value);
     float get(int index) const;
+    float get_previous() const;
     int size() const;
 };

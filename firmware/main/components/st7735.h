@@ -25,6 +25,9 @@
 
 #define ST7735_GMCTRP1 0xE0
 #define ST7735_GMCTRN1 0xE1
+#define ST7735_SCRLAR 0x33
+#define ST7735_VSCSAD 0x37
+#define MEM_LINES 162
 
 // ST77XX commands
 #define ST_CMD_DELAY 0x80 // special signifier for command lists

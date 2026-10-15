@@ -3,9 +3,11 @@
 #include <iostream>
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <cstdlib>
+#include <string>
+#include <iostream>
 
 #define PORT 50000
-#define RECEIVER_IP ""
 #include <tchar.h>
 #include "../common/protocol.h"
 #include "udp.h"
@@ -28,7 +30,18 @@ Udpclient::~Udpclient()
 
 bool Udpclient::initialize()
 {
-    // Load dll
+
+    const char *ipEnv = std::getenv("RECEIVER_IP");
+    if (!ipEnv)
+    {
+        std::cerr << "RECEIVER_IP environment variable is not set\n";
+        return 1;
+    }
+    std::string ip = ipEnv;
+    const char *portEnv = std::getenv("RECEIVER_PORT");
+    int port = portEnv ? std::stoi(portEnv) : 5000; // default port
+
+    // load dll
     WSADATA wsaData; // struct containing settings for windows sockets
     int wsaerr;
     WORD wVersionRequested = MAKEWORD(2, 2);
@@ -59,8 +72,8 @@ bool Udpclient::initialize()
 
     // Set destination address
     address.sin_family = AF_INET;
-    InetPton(AF_INET, _T(RECEIVER_IP), &address.sin_addr.s_addr);
-    address.sin_port = htons(PORT);
+    InetPtonA(AF_INET, ip.c_str(), &address.sin_addr.s_addr);
+    address.sin_port = htons(port);
 
     return true;
 }

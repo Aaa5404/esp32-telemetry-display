@@ -41,7 +41,7 @@ int main()
 
             cin >> gas >> brake;
             cout << "Gas: " << gas << endl;
-
+            cout << "Brake: " << brake << endl;
             mouseData.gas = gas;
             mouseData.brake = brake;
             udp.send(mouseData, sizeof(mouseData));

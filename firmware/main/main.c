@@ -1,11 +1,3 @@
-/* WiFi station Example
-
-   This example code is in the Public Domain (or CC0 licensed, at your option.)
-
-   Unless required by applicable law or agreed to in writing, this
-   software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-   CONDITIONS OF ANY KIND, either express or implied.
-*/
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -64,7 +56,7 @@ static EventGroupHandle_t s_wifi_event_group;
  * - we failed to connect after the maximum amount of retries */
 #define WIFI_CONNECTED_BIT BIT0
 #define WIFI_FAIL_BIT BIT1
-
+#define DISPLAY_FRAMEBUFFER 0
 #include <string.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -245,12 +237,14 @@ void displayTask(void *pvParameters)
     int frames = 0;
 
     static uint16_t framebuffer[SCREEN_WIDTH * SCREEN_HEIGHT];
+    static uint16_t colbuffer[SCREEN_WIDTH];
     PhysicsData data;
     QueueHandle_t queue = (QueueHandle_t)pvParameters;
     while (1)
     {
         if (xQueueReceive(queue, &data, portMAX_DELAY))
         {
+#if DISPLAY_FRAMEBUFFER
             int64_t t0 = esp_timer_get_time();
             drawGraph(framebuffer, data.gas, data.brake);
             int64_t t1 = esp_timer_get_time();
@@ -268,7 +262,27 @@ void displayTask(void *pvParameters)
                 push_sum = 0;
                 last_update_time = t2;
             }
-            // ESP_LOGI(TAG, "Updated display with gas: %.2f, brake: %.2f", data.gas, data.brake);
+// ESP_LOGI(TAG, "Updated display with gas: %.2f, brake: %.2f", data.gas, data.brake);
+#endif
+#if !DISPLAY_FRAMEBUFFER
+            int64_t t0 = esp_timer_get_time();
+            draw_column(colbuffer, data.gas, data.brake);
+            int64_t t1 = esp_timer_get_time();
+            display_scroll_push_row(colbuffer);
+            int64_t t2 = esp_timer_get_time();
+
+            draw_sum += t1 - t0;
+            push_sum += t2 - t1;
+            frames++;
+            if (t2 - last_update_time > 1000000)
+            {
+                ESP_LOGI(TAG, "Draw time: %.5f us, Push time: %.5f us", (double)(draw_sum / frames), (double)(push_sum / frames));
+                frames = 0;
+                draw_sum = 0;
+                push_sum = 0;
+                last_update_time = t2;
+            }
+#endif
         }
     }
 }
@@ -295,6 +309,7 @@ void app_main(void)
 
     wifi_init_sta();
     display_init();
+    ESP_LOGI(TAG, "Display initialized");
 
     QueueHandle_t queue = xQueueCreate(5, sizeof(PhysicsData));
     xTaskCreate(udp_receiver_task, "udp receiver", 4096, queue, 5, NULL);

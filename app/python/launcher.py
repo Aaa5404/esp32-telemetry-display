@@ -1,8 +1,15 @@
+import os
+import sys
 import time
 import math
 import subprocess
+from dotenv import load_dotenv
 from pynput import mouse
 
+load_dotenv()
+if not os.environ.get("RECEIVER_IP"):
+    sys.exit("RECEIVER_IP missing. Copy .env.example to .env and fill it in.")
+    
 gas = 0
 brake = 0
 position = 0

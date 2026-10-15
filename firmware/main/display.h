@@ -15,6 +15,7 @@ void lcd_init(void);
 void display_set_window(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1);
 void display_fill_screen(uint16_t color);
 void display_draw_buffer(const uint16_t *buffer);
+void display_scroll_push_row(const uint16_t *px);
 
 void display_init(void);
 

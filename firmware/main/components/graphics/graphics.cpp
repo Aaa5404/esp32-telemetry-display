@@ -2,7 +2,7 @@
 #include "graphics.h"
 #include "esp_system.h"
 #include "graph_buffer.hpp"
-
+#include <string.h>
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 160
 
@@ -12,7 +12,7 @@
 static GraphBuffer gasGraph;
 static GraphBuffer brakeGraph;
 
-void display_draw_pixel(uint16_t *buffer, uint8_t x, uint8_t y, uint16_t color)
+void inline display_draw_pixel(uint16_t *buffer, uint8_t x, uint8_t y, uint16_t color)
 {
     if (x >= 128 || y >= 160)
         return;
@@ -125,4 +125,38 @@ void draw_test_zigzag(uint16_t *framebuffer)
         x0 = x1;
         y0 = y1;
     }
+}
+
+static inline int value_to_col(float v)
+{
+    if (!(v > 0.0f))
+        return 0; // also catches NaN
+    if (v > 1.0f)
+        v = 1.0f;
+    return (int)(v * (SCREEN_WIDTH - 1) + 0.5f); // 0.0 -> 0, 1.0 -> 127
+}
+
+// Draw the span between two columns, inclusive, so the trace stays connected
+// and a pixel is still drawn when the value doesn't change.
+void display_draw_run(uint16_t *colbuffer, int from, int to, uint16_t color)
+{
+    const int lo = from < to ? from : to;
+    const int hi = from < to ? to : from;
+    for (int i = lo; i <= hi; i++)
+        display_draw_pixel(colbuffer, i, 0, color);
+}
+
+void draw_column(uint16_t *colbuffer, float gas, float brake)
+{
+    memset(colbuffer, 0, SCREEN_WIDTH * sizeof(uint16_t));
+
+    // Read the previous samples BEFORE update_graph() pushes the new ones.
+    const int gas_prev = value_to_col(gasGraph.get_previous());
+    const int brake_prev = value_to_col(brakeGraph.get_previous());
+
+    update_graph(gas, brake);
+
+    // Brake is drawn second, so it wins where the two overlap.
+    display_draw_run(colbuffer, gas_prev, value_to_col(gas), GAS_COLOR);
+    display_draw_run(colbuffer, brake_prev, value_to_col(brake), BRAKE_COLOR);
 }

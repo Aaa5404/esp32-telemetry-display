@@ -22,7 +22,7 @@
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 160
 static spi_device_handle_t display;
-
+static uint16_t scroll_pos = 0;
 typedef struct
 {
     uint8_t cmd;
@@ -223,8 +223,8 @@ void lcd_init(void)
         }
     }
 }
-void display_set_window(uint8_t x0, uint8_t y0,
-                        uint8_t x1, uint8_t y1)
+
+void display_set_window(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1)
 {
     // Column address set
     display_write_command(ST77XX_CASET);
@@ -278,6 +278,79 @@ void display_draw_buffer(const uint16_t *buffer)
     display_write_data((const uint8_t *)buffer + chunk_bytes, total_bytes - chunk_bytes);
 }
 
+void display_set_scroll_area(uint16_t top, uint16_t scroll, uint16_t bottom)
+{
+    display_write_command(ST7735_SCRLAR);
+    uint8_t d[] = {top >> 8, top & 0xFF,
+                   scroll >> 8, scroll & 0xFF,
+                   bottom >> 8, bottom & 0xFF};
+    display_write_data(d, sizeof(d));
+}
+void display_set_scroll_start(uint16_t line)
+{
+    display_write_command(ST7735_VSCSAD);
+    uint8_t d[] = {line >> 8, line & 0xFF};
+    display_write_data(d, sizeof(d));
+}
+void display_draw_row(uint8_t row, const uint16_t *px)
+{
+    display_set_window(0, row, SCREEN_WIDTH - 1, row);
+    display_write_data((const uint8_t *)px, SCREEN_WIDTH * 2);
+}
+void display_scroll_init(void)
+{
+    scroll_pos = 0;
+
+    display_set_scroll_area(0, SCREEN_HEIGHT, 0);
+    display_set_scroll_start(scroll_pos);
+}
+
+void display_scroll_push_row(const uint16_t *px)
+{
+    scroll_pos = (scroll_pos + SCREEN_HEIGHT - 1) % SCREEN_HEIGHT;
+
+    // Mirror due to MADCTL, row 0 corresponds to write at address 159
+    uint8_t row = (SCREEN_HEIGHT - 1) - scroll_pos;
+    display_draw_row(row, px);
+
+    display_set_scroll_start(scroll_pos);
+}
+void display_scroll_test(void)
+{
+    display_set_scroll_area(0, SCREEN_HEIGHT, 0);
+    while (1)
+    {
+        scroll_pos = (scroll_pos + 1) % SCREEN_HEIGHT;
+        display_set_scroll_start(scroll_pos);
+        vTaskDelay(pdMS_TO_TICKS(20));
+    }
+}
+
+void display_fill_gradient(void)
+{
+    display_set_window(0, 0, SCREEN_WIDTH - 1, SCREEN_HEIGHT - 1);
+
+    static uint8_t line[SCREEN_WIDTH * 2];
+
+    for (int y = 0; y < SCREEN_HEIGHT; y++)
+    {
+        uint8_t r = (y * 31) / (SCREEN_HEIGHT - 1);      // 0..31, increases down
+        uint8_t g = 63 - (y * 63) / (SCREEN_HEIGHT - 1); // 63..0, decreases down
+        bool marker = (y % 20 == 0);
+
+        for (int x = 0; x < SCREEN_WIDTH; x++)
+        {
+            uint8_t b = (x * 31) / (SCREEN_WIDTH - 1); // 0..31, increases across
+            uint16_t color = marker ? 0xFFFF
+                                    : (uint16_t)((r << 11) | (g << 5) | b);
+
+            line[x * 2] = color >> 8; // high byte first, same as display_fill_screen
+            line[x * 2 + 1] = color & 0xFF;
+        }
+
+        display_write_data(line, sizeof(line));
+    }
+}
 void display_init(void)
 {
     display_spi_init();
@@ -293,4 +366,6 @@ void display_init(void)
     display_fill_screen(GREEN);
     vTaskDelay(pdMS_TO_TICKS(500));
     display_fill_screen(BLUE);
+    display_fill_gradient();
+    display_scroll_init();
 }

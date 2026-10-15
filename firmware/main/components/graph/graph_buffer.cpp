@@ -26,6 +26,13 @@ float GraphBuffer::get(int index) const
     return data[(front + index) % SCREEN_HEIGHT];
 }
 
+float GraphBuffer::get_previous() const
+{
+    if (count == 0)
+        return 0.0f;
+    return data[(rear + SCREEN_HEIGHT - 1) % SCREEN_HEIGHT];
+}
+
 int GraphBuffer::size() const
 {
     return count;
